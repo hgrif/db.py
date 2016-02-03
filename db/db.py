@@ -18,6 +18,7 @@ from prettytable import PrettyTable
 import pybars 
 
 from .queries import mysql as mysql_templates
+from .queries import oracle as oracle_templates
 from .queries import postgres as postgres_templates
 from .queries import sqlite as sqlite_templates
 from .queries import mssql as mssql_templates
@@ -26,6 +27,7 @@ from .utils import profile_path
 
 queries_templates = {
     "mysql": mysql_templates,
+    "oracle": oracle_templates,
     "postgres": postgres_templates,
     "redshift": postgres_templates,
     "sqlite": sqlite_templates,
@@ -73,6 +75,12 @@ try:
     HAS_PYMSSQL = True
 except ImportError:
     HAS_PYMSSQL = False
+
+try:
+    import cx_Oracle
+    HAS_ORACLE = True
+except ImportError:
+    HAS_ORACLE = False
 
 
 DBPY_PROFILE_ID = ".db.py_"
@@ -844,13 +852,15 @@ class DB(object):
                 port = None
             elif dbtype=="mssql":
                 port = 1433
+            elif dbtype=="oracle":
+                port = 1521
             elif profile is not None:
                 pass
             else:
-                raise Exception("Database type not specified! Must select one of: postgres, sqlite, mysql, mssql, or redshift")
+                raise Exception("Database type not specified! Must select one of: postgres, sqlite, mysql, mssql, oracle, or redshift")
 
         self._use_cache = cache
-        if dbtype not in ("sqlite", "mssql") and username is None:
+        if dbtype not in ("sqlite", "mssql", "oracle") and username is None:  # Check Oracle
             self.load_credentials(profile)
             if cache:
                 self._metadata_cache = self.load_metadata(profile)
@@ -947,6 +957,17 @@ class DB(object):
                                            password=self.password,
                                            database=self.dbname)
                 self.cur = self.con.cursor()
+        elif self.dbtype=="oracle":
+            if not HAS_ORACLE:
+                raise Exception("Couldn't find cx_Oracle. Please ensure it is installed")
+            dsn = "{hostname}:{port}/{dbname}".format(hostname=self.hostname,
+                                                      port=self.port,
+                                                      dbname=self.dbname)
+            self.con = cx_Oracle.connect(user=self.username,
+                                         password=self.password,
+                                         dsn=dsn)
+            self.con.autocommit = 1
+            self.cur = self.con.cursor()
 
         self._tables = TableSet([])
         self._exclude_system_tables = exclude_system_tables
