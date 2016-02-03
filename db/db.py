@@ -1575,7 +1575,7 @@ class DB(object):
             else:
                 q = self._query_templates['system']['schema_with_system']
             self.cur.execute(q)
-            col_meta = self.cur
+            col_meta = self.cur.fetchall()
 
         return col_meta, table_meta
 
